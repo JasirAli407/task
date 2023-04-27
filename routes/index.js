@@ -3,10 +3,12 @@ const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 const db = require('../config/dbConnection');
+const { Op } = require('sequelize')
 const { Sale,
     //  Item
 } = require('../models');
 const sequelize = require('../config/dbConnection');
+
 /**
  * sswagger
  * /api/dataload:
@@ -95,10 +97,11 @@ router.get('/totalSales', async (req, res) => {
                 [sequelize.fn('SUM', sequelize.col('quantity')), 'total_quantity'],
                 [sequelize.fn('SUM', sequelize.col('total_price')), 'total_sales']
             ],
-            group: ['item_name']
+            group: ['item_name'],
+            raw: true
         });
-
-        //   console.log(results);
+        console.log(data);
+        //   console.log('----------',Array.isArray(data));
 
         // { "item_name": "Sugar", "total_quantity": 45, 'total_sales': 3433.67 }
         res.json({ data });
@@ -190,10 +193,77 @@ router.get('/totalSalesByMonth', async (req, res) => {
 
 
 
+    for (var result of results) {
+
+
+
+
+
+        var month = result.month;
+
+        //  console.log(month);
+        switch (month) {
+
+            case 1:
+                month = 'january';
+                break;
+
+            case 2:
+                month = 'february';
+                break;
+
+            case 3:
+                month = 'march';
+                break;
+
+            case 4:
+                month = 'april';
+                break;
+
+
+            case 5:
+                month = 'may';
+                break;
+
+
+            case 6:
+                month = 'june';
+                break;
+
+            case 7:
+                month = 'july';
+                break;
+
+            case 8:
+                month = 'august';
+                break;
+
+            case 9:
+                month = 'september';
+                break;
+
+            case 10:
+                month = 'october';
+                break;
+
+
+            case 11:
+                month = 'november';
+                break;
+
+            case 12:
+                month = 'december';
+                break;
+
+            default:
+                ;
+        }
+
+        result.month = month;
+    }
     res.status(200).json(results)
-
-
 })
+
 
 
 
@@ -216,22 +286,37 @@ router.get('/totalSalesByMonth', async (req, res) => {
 
 router.get('/popularItemOfMonth', async (req, res) => {
 
+
+    //assume  we get in YYYY-MM format
+    let { month } = req.body;
+
     try {
-        const item = await Sale.findAll({
+        const result = await Sale.findOne({
+            attributes: ['item_name', [sequelize.fn('sum', sequelize.col('quantity')), 'total_qty']],
+            where: {
+                date: {
+                    [Op.gte]: new Date(`${month}-01T00:00:00.000Z`),
+                    [Op.lt]: new Date(`${month}-01T00:00:00.000Z`).setMonth(new Date(`${month}-01`).getMonth() + 1),
+                },
+            },
+            group: ['item_name'],
+            order: [[sequelize.literal('total_qty'), 'DESC']],// most probable thing here is that we r using literal method bcos total_qty is a alias
+        });
 
-            attributes: ['item_name'],
-            group: ['quantity']
 
 
-        })
+        console.log('popular---------', result);
 
-        res.json(item)
+        res.status(200).json(result)
+
+
+
 
     } catch (error) {
 
 
         if (error) {
-            console.error(errror)
+            console.error(error)
             res.status(500).json(error)
         }
     }
@@ -253,17 +338,73 @@ router.get('/popularItemOfMonth', async (req, res) => {
  *         description: Internal server error.
  */
 
-router.get('/mostRevenueByMonth', (req, res) => {
+router.get('/mostRevenueByMonth/:month', async (req, res) => {
     try {
-        res.status(200).json({ message: 'April' })
+
+        console.log(req.params);
+
+        const month = req.params.month;
+
+
+
+
+        const data = await Sale.findAll(
+            {
+                attributes: [
+                    [sequelize.fn('MONTH', sequelize.col('date')), 'month'],
+                    [sequelize.fn('sum', sequelize.col('total_price')), 'total_revenue']
+                ],
+
+                where: {
+                    date: {
+                        [Op.gte]: new Date(`${month}-01T00:00:00.000Z`),
+                        [Op.lt]: new Date(`${month}-01T00:00:00.000Z`).setMonth(new Date(`${month}-01`).getMonth() + 1),
+                    },
+                },
+
+                group: ['date']
+            }
+        )
+
+        res.status(200).json({ data })
 
     } catch (error) {
         if (error) {
-            console.error(errror)
+            console.error(error)
             res.status(500).json(error)
         }
     }
 })
 
+
+
+
+
+
+
+
+router.get('/mostRevenueByMonth', async (req, res) => {
+    try {
+
+        console.log(req.params);
+        const data = await Sale.findAll(
+            {
+                attributes: [
+                    [sequelize.fn('MONTH', sequelize.col('date')), 'month'],
+                    [sequelize.fn('sum', sequelize.col('total_price')), 'total_revenue']
+                ],
+
+                group: ['date']
+            }
+        )
+
+        res.status(200).json(data)
+    } catch (error) {
+        if (error) {
+            console.error(error)
+            res.status(500).json(error)
+        }
+    }
+})
 
 module.exports = router;
